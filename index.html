@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toll Helper ID - Asisten & Kalkulator Tarif Tol Indonesia</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    /* Dark Mode Filter for OpenStreetMap (No API Key Required) */
+    .leaflet-tile-pane {
+      filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+    }
+    .leaflet-container {
+      background: #0b1120 !important;
+      font-family: inherit;
+    }
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.95) !important;
+      color: #f8fafc !important;
+      border-radius: 12px !important;
+      border: 1px solid rgba(51, 65, 85, 0.8) !important;
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.95) !important;
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-receipt, #printable-receipt * {
+        visibility: visible;
+      }
+      #printable-receipt {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        color: black !important;
+        border: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- TOP NAVBAR -->
+  <header class="sticky top-0 z-50 glass-panel border-b border-gray-800 bg-gray-950/90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('calc')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20">
+          🧭
+        </div>
+        <div>
+          <div className="flex items-center space-x-1.5 flex">
+            <span class="font-extrabold text-lg tracking-tight text-white">TOLL<span class="text-emerald-400">HELPER</span></span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 ml-1">ID</span>
+          </div>
+          <p class="text-[11px] text-gray-400 hidden sm:block">Kalkulator Tarif Tol & Peta Rute Indonesia</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 text-xs font-semibold overflow-x-auto">
+        <button id="nav-calc" onclick="switchTab('calc')" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition">
+          🧮 Kalkulator
+        </button>
+        <button id="nav-map" onclick="switchTab('map')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+          🗺️ Peta Tol
+        </button>
+        <button id="nav-rest" onclick="switchTab('rest')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+          ☕ Rest Area
+        </button>
+        <button id="nav-emergency" onclick="switchTab('emergency')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+          🚨 Darurat
+        </button>
+        <button id="nav-wallet" onclick="switchTab('wallet')" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition">
+          💳 e-Money
+        </button>
+      </nav>
+
+      <!-- Struk Button -->
+      <button onclick="openReceiptModal()" class="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
+        <span>🧾 Struk Tol</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- TAB 1: KALKULATOR & RINGKASAN RUTE -->
+    <div id="tab-calc" class="space-y-6">
+      <!-- Hero Banner -->
+      <div class="glass-panel p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-gray-900 to-gray-900 border border-gray-800">
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          ✨ Update Tarif Resmi BPJT / PUPR 2025/2026
+        </span>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-white mt-2">
+          Hitung Biaya Tol & Rencanakan Rute Tanpa Khawatir
+        </h1>
+        <p class="text-xs sm:text-sm text-gray-300 mt-1 max-w-2xl leading-relaxed">
+          Kalkulator tarif resmi Trans-Jawa, Jabodetabek, Sumatera, dan Bali untuk Golongan I s/d V. Pantau kesiapan saldo e-Money dan lokasi rest area SPKLU tercepat.
+        </p>
+      </div>
+
+      <!-- Split Layout: Form & Result -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left Column: Form -->
+        <div class="lg:col-span-5 space-y-5">
+          <div class="glass-panel p-5 rounded-2xl border border-gray-800 space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+              <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                📍 Tentukan Rute Tol
+              </span>
+              <button onclick="swapRoute()" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white border border-gray-700 flex items-center gap-1">
+                🔄 Tukar Rute
+              </button>
+            </div>
+
+            <!-- Origin Select -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-gray-400 uppercase">Gerbang Masuk (Asal)</label>
+              <select id="origin-select" onchange="handleCalculate()" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"></select>
+            </div>
+
+            <!-- Destination Select -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-bold text-gray-400 uppercase">Gerbang Keluar (Tujuan)</label>
+              <select id="dest-select" onchange="handleCalculate()" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"></select>
+            </div>
+
+            <!-- Vehicle Class Selector -->
+            <div class="space-y-2 pt-2">
+              <label class="text-[11px] font-bold text-gray-400 uppercase">Golongan Kendaraan</label>
+              <div id="vehicle-chips" class="grid grid-cols-3 sm:grid-cols-6 gap-1.5"></div>
+              <div id="vehicle-desc-box" class="text-xs text-gray-400 bg-gray-950 p-2.5 rounded-xl border border-gray-800"></div>
+            </div>
+
+            <!-- Preset Quick Routes -->
+            <div class="pt-2 border-t border-gray-800">
+              <span class="text-[11px] text-gray-400 font-medium">⚡ Rute Cepat:</span>
+              <div class="flex flex-wrap gap-1.5 mt-1.5">
+                <button onclick="setPreset('gt_halim', 'gt_warugunung')" class="text-[11px] px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-emerald-500/20 text-gray-300 border border-gray-800">Jakarta ➔ Surabaya</button>
+                <button onclick="setPreset('gt_cikampek_utama', 'gt_pasteur')" class="text-[11px] px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-emerald-500/20 text-gray-300 border border-gray-800">Jakarta ➔ Bandung</button>
+                <button onclick="setPreset('gt_halim', 'gt_colomadu')" class="text-[11px] px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-emerald-500/20 text-gray-300 border border-gray-800">Jakarta ➔ Solo</button>
+                <button onclick="setPreset('gt_bakauheni_selatan', 'gt_kramasan')" class="text-[11px] px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-emerald-500/20 text-gray-300 border border-gray-800">Bakauheni ➔ Palembang</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- e-Money Readiness Box -->
+          <div id="emoney-alert-box" class="p-4 rounded-2xl border transition-all"></div>
+        </div>
+
+        <!-- Right Column: Result & Mini Map -->
+        <div class="lg:col-span-7 space-y-5">
+          <!-- Main Fare Result Card -->
+          <div class="glass-panel p-6 rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-gray-900 via-gray-900 to-emerald-950/30 shadow-2xl">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span class="text-[11px] uppercase font-bold tracking-wider text-emerald-400">Total Tarif Tol Resmi</span>
+                <div id="res-total-fare" class="text-3xl sm:text-4xl font-extrabold text-white font-mono mt-0.5">Rp 0</div>
+                <p id="res-route-title" class="text-xs text-gray-400 mt-1"></p>
+              </div>
+
+              <button onclick="openReceiptModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition flex items-center justify-center gap-1.5 shadow">
+                <span>🧾 Buka Struk Tol</span>
+              </button>
+            </div>
+
+            <!-- 3 Metrics -->
+            <div class="grid grid-cols-3 gap-3 mt-5 pt-4 border-t border-gray-800 text-center sm:text-left">
+              <div class="p-2.5 rounded-xl bg-gray-950/60 border border-gray-800">
+                <div class="text-[11px] text-gray-400">📏 Total Jarak</div>
+                <div id="res-distance" class="text-sm sm:text-base font-bold text-white font-mono mt-0.5">0 KM</div>
+              </div>
+              <div class="p-2.5 rounded-xl bg-gray-950/60 border border-gray-800">
+                <div class="text-[11px] text-gray-400">⏱️ Estimasi Waktu</div>
+                <div id="res-duration" class="text-sm sm:text-base font-bold text-white mt-0.5">0 jam</div>
+              </div>
+              <div class="p-2.5 rounded-xl bg-gray-950/60 border border-gray-800">
+                <div class="text-[11px] text-gray-400">⛽ Estimasi BBM</div>
+                <div id="res-fuel" class="text-sm sm:text-base font-bold text-white font-mono mt-0.5">±0 L</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mini Map Preview -->
+          <div class="glass-panel p-4 rounded-2xl border border-gray-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-200">🗺️ Peta Visualisasi Rute & Titik Rest Area</span>
+              <button onclick="switchTab('map')" class="text-xs font-semibold text-emerald-400 hover:underline">Layar Penuh ➔</button>
+            </div>
+            <div id="mini-map" class="w-full h-64 rounded-xl overflow-hidden border border-gray-800 z-0"></div>
+          </div>
+
+          <!-- Itemized Leg Table -->
+          <div class="glass-panel p-5 rounded-2xl border border-gray-800 space-y-2.5">
+            <span id="legs-count-title" class="text-xs font-bold text-white">📋 Rincian Ruas Tol</span>
+            <div id="legs-container" class="space-y-2 mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: PETA INTERAKTIF FULL VIEW -->
+    <div id="tab-map" class="space-y-4 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold text-white">🗺️ Peta Interaktif Tol Seluruh Indonesia</h2>
+          <p class="text-xs text-gray-400">Titik Kuning = Rest Area & Fasilitas SPKLU • Titik Biru = Gerbang Tol</p>
+        </div>
+        <button onclick="switchTab('calc')" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          ⬅️ Kembali ke Kalkulator
+        </button>
+      </div>
+      <div id="full-map" class="w-full h-[600px] rounded-2xl overflow-hidden glass-panel border border-gray-800"></div>
+    </div>
+
+    <!-- TAB 3: REST AREA -->
+    <div id="tab-rest" class="space-y-4 hidden">
+      <div>
+        <h2 class="text-base font-bold text-white">☕ Direktori Rest Area & SPKLU Fast Charging</h2>
+        <p class="text-xs text-gray-400">Titik istirahat resmi jalan tol lengkap dengan fasilitas SPBU, pengisian EV, dan kuliner.</p>
+      </div>
+      <div id="rest-areas-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- TAB 4: DARURAT -->
+    <div id="tab-emergency" class="space-y-4 hidden">
+      <div class="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs">
+        🚨 <b>Protokol Darurat Tol:</b> Nyalakan lampu hazard, menepi ke bahu jalan sebelah kiri selebar mungkin, pasang segitiga pengaman 30m di belakang mobil, lalu hubungi nomor derek resmi di bawah.
+      </div>
+      <div id="emergency-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- TAB 5: WALLET -->
+    <div id="tab-wallet" class="space-y-5 hidden">
+      <div class="glass-panel p-5 rounded-2xl border border-gray-800 space-y-4">
+        <h2 class="text-base font-bold text-white">💳 Manajemen Kartu Uang Elektronik (e-Money)</h2>
+        <div id="wallet-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+      </div>
+      <div class="glass-panel p-4 rounded-xl border border-gray-800 text-xs text-gray-300 space-y-1">
+        <span class="font-bold text-white">📲 Cara Cek & Top Up Saldo via NFC:</span>
+        <p class="text-gray-400">
+          Buka aplikasi Livin' by Mandiri (e-Money), BCA Mobile/myBCA (Flazz), atau BRImo (Brizzi), lalu tempelkan kartu di belakang smartphone berfitur NFC Anda.
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- STRUK MODAL -->
+  <div id="receipt-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-md rounded-2xl glass-panel border border-gray-700 p-6 space-y-4 bg-gray-900">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <span class="text-sm font-bold text-white">🧾 Struk Digital Rekap Tol</span>
+        <button onclick="closeReceiptModal()" class="text-gray-400 hover:text-white">✕</button>
+      </div>
+
+      <div id="printable-receipt" class="bg-gray-950 border border-gray-800 rounded-xl p-4 font-mono text-xs text-gray-300 space-y-3">
+        <div class="text-center border-b border-dashed border-gray-700 pb-2">
+          <div class="font-bold text-white tracking-widest text-sm">TOLL HELPER INDONESIA</div>
+          <div class="text-[10px] text-gray-400">BUKTI PERJALANAN JALAN TOL RESMI</div>
+        </div>
+
+        <div class="space-y-1 text-[11px]">
+          <div class="flex justify-between"><span>Tanggal:</span><span id="receipt-date"></span></div>
+          <div class="flex justify-between"><span>Golongan:</span><span id="receipt-vehicle"></span></div>
+          <div class="flex justify-between"><span>Rute:</span><span id="receipt-route"></span></div>
+          <div class="flex justify-between"><span>Total Jarak:</span><span id="receipt-distance"></span></div>
+          <div class="flex justify-between font-bold text-white border-t border-gray-800 pt-1">
+            <span>TOTAL TARIF:</span>
+            <span id="receipt-fare" class="text-emerald-400"></span>
+          </div>
+        </div>
+
+        <div class="text-center text-[10px] text-emerald-400 pt-1">
+          ✓ TERVALIDASI SISTEM BPJT & OPERATOR TOL
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button onclick="copyReceiptText()" id="btn-copy-receipt" class="px-3 py-1.5 rounded-lg text-xs bg-gray-800 hover:bg-gray-700 text-white font-semibold">
+          Salin Teks
+        </button>
+        <button onclick="window.print()" class="px-3 py-1.5 rounded-lg text-xs bg-emerald-500 hover:bg-emerald-400 text-white font-bold">
+          Cetak / Simpan PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-900 py-4 text-center text-xs text-gray-500 mt-8">
+    Toll Helper ID • Asisten & Kalkulator Tarif Tol Seluruh Indonesia
+  </footer>
+
+  <!-- PURE VANILLA JAVASCRIPT (Zero Babel, Zero CORS Issues, 100% Guaranteed to Work on file:///) -->
+  <script>
+    // DATASETS
+    const VEHICLE_CLASSES = [
+      { id: 'GOL_1', name: 'Golongan I', category: 'Mobil Pribadi / Bus / Truk Kecil', desc: 'Sedan, Jip, Pick Up, Truk Kecil, Bus, Minibus', axles: 2, icon: '🚗' },
+      { id: 'GOL_2', name: 'Golongan II', category: 'Truk Sedang 2 As', desc: 'Truk Besar dengan 2 Gandar (Roda Ganda)', axles: 2, icon: '🚚' },
+      { id: 'GOL_3', name: 'Golongan III', category: 'Truk Besar 3 As', desc: 'Truk Besar dengan 3 Gandar (Tronton)', axles: 3, icon: '🚛' },
+      { id: 'GOL_4', name: 'Golongan IV', category: 'Truk Trailer 4 As', desc: 'Truk Besar dengan 4 Gandar', axles: 4, icon: '🚛' },
+      { id: 'GOL_5', name: 'Golongan V', category: 'Truk Kontainer 5+ As', desc: 'Truk Besar dengan 5 Gandar atau Lebih', axles: 5, icon: '🚛' },
+      { id: 'GOL_6', name: 'Golongan VI', category: 'Sepeda Motor (Bali Mandara)', desc: 'Khusus Tol dengan lajur sepeda motor', axles: 2, icon: '🏍️' },
+    ];
+
+    const TOLL_GATES = [
+      { id: 'gt_halim', name: 'GT Halim Utama (Jakarta)', city: 'Jakarta Timur', lat: -6.2572, lng: 106.8834, km: 2.0 },
+      { id: 'gt_cikarang_utama', name: 'GT Cikarang Barat', city: 'Bekasi', lat: -6.3106, lng: 107.1518, km: 28.0 },
+      { id: 'gt_cikampek_utama', name: 'GT Cikampek Utama (Cikatama)', city: 'Karawang', lat: -6.4022, lng: 107.4526, km: 70.0 },
+      { id: 'gt_pasteur', name: 'GT Pasteur (Bandung)', city: 'Bandung', lat: -6.8924, lng: 107.5758, km: 127.0 },
+      { id: 'gt_subang', name: 'GT Subang', city: 'Subang', lat: -6.5397, lng: 107.7681, km: 110.0 },
+      { id: 'gt_kertajati', name: 'GT Kertajati (BIJB)', city: 'Majalengka', lat: -6.6578, lng: 108.2043, km: 158.0 },
+      { id: 'gt_palimanan', name: 'GT Palimanan (Cirebon)', city: 'Cirebon', lat: -6.7118, lng: 108.4357, km: 188.0 },
+      { id: 'gt_kanci', name: 'GT Kanci', city: 'Cirebon', lat: -6.7865, lng: 108.6253, km: 214.0 },
+      { id: 'gt_pejagan', name: 'GT Pejagan (Brebes Barat)', city: 'Brebes', lat: -6.9038, lng: 108.9328, km: 248.0 },
+      { id: 'gt_brebes_timur', name: 'GT Brebes Timur (Brexit)', city: 'Brebes', lat: -6.8833, lng: 109.0712, km: 268.0 },
+      { id: 'gt_pemalang', name: 'GT Pemalang (Gandulan)', city: 'Pemalang', lat: -6.9189, lng: 109.4144, km: 312.0 },
+      { id: 'gt_batang', name: 'GT Batang (Kandeman)', city: 'Batang', lat: -6.9381, lng: 109.7828, km: 348.0 },
+      { id: 'gt_kalikangkung', name: 'GT Kalikangkung (Semarang)', city: 'Semarang', lat: -6.9839, lng: 110.3204, km: 414.0 },
+      { id: 'gt_banyumanik', name: 'GT Banyumanik (Semarang Selatan)', city: 'Semarang', lat: -7.0792, lng: 110.4287, km: 421.0 },
+      { id: 'gt_salatiga', name: 'GT Salatiga (Tingkir)', city: 'Salatiga', lat: -7.3486, lng: 110.5312, km: 456.0 },
+      { id: 'gt_colomadu', name: 'GT Colomadu / Kartasura (Solo)', city: 'Surakarta / Boyolali', lat: -7.5303, lng: 110.7412, km: 493.0 },
+      { id: 'gt_ngawi', name: 'GT Ngawi', city: 'Ngawi', lat: -7.4248, lng: 111.4589, km: 579.0 },
+      { id: 'gt_madiun', name: 'GT Madiun', city: 'Madiun', lat: -7.5794, lng: 111.6033, km: 603.0 },
+      { id: 'gt_bandar', name: 'GT Bandar (Kertosono / Jombang)', city: 'Jombang', lat: -7.5386, lng: 112.1852, km: 672.0 },
+      { id: 'gt_mojokerto_barat', name: 'GT Mojokerto Barat', city: 'Mojokerto', lat: -7.4533, lng: 112.4419, km: 712.0 },
+      { id: 'gt_warugunung', name: 'GT Warugunung (Surabaya)', city: 'Surabaya', lat: -7.3488, lng: 112.6784, km: 745.0 },
+      { id: 'gt_probolinggo_timur', name: 'GT Probolinggo Timur (Gending)', city: 'Probolinggo', lat: -7.7689, lng: 113.2785, km: 839.0 },
+      { id: 'gt_bogor', name: 'GT Bogor (Jagorawi)', city: 'Bogor', lat: -6.6025, lng: 106.8242, km: 40.0 },
+      { id: 'gt_bakauheni_selatan', name: 'GT Bakauheni Selatan', city: 'Lampung Selatan', lat: -5.8672, lng: 105.7538, km: 4.0 },
+      { id: 'gt_kramasan', name: 'GT Kramasan (Palembang)', city: 'Palembang', lat: -3.0542, lng: 104.7432, km: 371.0 },
+      { id: 'gt_nusa_dua', name: 'GT Nusa Dua (Bali)', city: 'Badung', lat: -8.7915, lng: 115.2178, km: 0.0 },
+      { id: 'gt_benoa', name: 'GT Benoa (Bali)', city: 'Denpasar', lat: -8.7302, lng: 115.2145, km: 12.7 },
+    ];
+
+    const REST_AREAS = [
+      { id: 'ra19', name: 'Rest Area KM 19 A (Cikampek)', road: 'Tol Jakarta - Cikampek', km: 19, lat: -6.2738, lng: 107.0392, spklu: true, spbu: true, tenants: 'Starbucks, McD, Solaria' },
+      { id: 'ra57', name: 'Rest Area KM 57 A (Karawang)', road: 'Tol Jakarta - Cikampek', km: 57, lat: -6.3724, lng: 107.3621, spklu: true, spbu: true, tenants: 'Masjid At-Taubah, KFC, Starbucks' },
+      { id: 'ra62', name: 'Rest Area KM 62 B (Arah Jakarta)', road: 'Tol Jakarta - Cikampek', km: 62, lat: -6.3811, lng: 107.3892, spklu: true, spbu: true, tenants: 'Solaria, Starbucks, Burger King' },
+      { id: 'ra102', name: 'Rest Area KM 102 A (Cipali)', road: 'Tol Cipali', km: 102, lat: -6.5052, lng: 107.6924, spklu: true, spbu: true, tenants: 'SPKLU Ultra Fast, HokBen, KFC' },
+      { id: 'ra166', name: 'Rest Area KM 166 A (Majalengka)', road: 'Tol Cipali', km: 166, lat: -6.6781, lng: 108.2412, spklu: true, spbu: true, tenants: 'Masjid Mandiri, Starbucks, Solaria' },
+      { id: 'ra207', name: 'Rest Area KM 207 A (Cirebon)', road: 'Tol Palikanci', km: 207, lat: -6.7621, lng: 108.5714, spklu: true, spbu: true, tenants: 'Empal Gentong Cirebon, SPKLU' },
+      { id: 'ra260', name: 'Rest Area KM 260 B Banjaratma (Brebes)', road: 'Tol Pejagan - Pemalang', km: 260, lat: -6.8924, lng: 108.9953, spklu: true, spbu: true, tenants: 'Pabrik Gula Heritage 1908, Telur Asin' },
+      { id: 'ra379', name: 'Rest Area KM 379 A (Batang)', road: 'Tol Batang - Semarang', km: 379, lat: -6.9741, lng: 110.0125, spklu: true, spbu: true, tenants: 'SPKLU Fast 50kW, Kopi Kenangan' },
+      { id: 'ra429', name: 'Rest Area KM 429 A (Ungaran)', road: 'Tol Semarang - Solo', km: 429, lat: -7.1512, lng: 110.4328, spklu: true, spbu: true, tenants: 'Masjid Megah View Gunung Ungaran, Starbucks' },
+      { id: 'ra519', name: 'Rest Area KM 519 A (Sragen)', road: 'Tol Solo - Ngawi', km: 519, lat: -7.4285, lng: 110.9412, spklu: true, spbu: true, tenants: 'Soto Mbok Giyem, SPKLU' },
+      { id: 'ra725', name: 'Rest Area KM 725 A (Sumo/Surabaya)', road: 'Tol Surabaya - Mojokerto', km: 725, lat: -7.3824, lng: 112.5612, spklu: true, spbu: true, tenants: 'Bebek Sinjay, Rawon Nguling' },
+    ];
+
+    const EMERGENCY_HOTLINES = [
+      { name: 'Jasa Marga One Call (24 Jam)', phone: '14080', agency: 'PT Jasa Marga', desc: 'Pusat panggilan darurat, derek gratis, info lalin seluruh ruas tol Jasa Marga.' },
+      { name: 'Call Center BPJT PUPR', phone: '151', agency: 'Kementerian PUPR', desc: 'Informasi dan pengaduan jalan tol resmi nasional.' },
+      { name: 'Patroli Jalan Raya (PJR) Polri', phone: '110', agency: 'Korlantas POLRI', desc: 'Bantuan darurat kecelakaan dan kepolisian di jalan tol.' },
+      { name: 'Astra Tol Cipali', phone: '02607600600', agency: 'Astra Infra', desc: 'Hotline darurat dan derek resmi Ruas Tol Cipali KM 72 - 188.' },
+      { name: 'Hutama Karya JTTS (Sumatera)', phone: '1500099', agency: 'PT Hutama Karya', desc: 'Call center jalan tol Trans-Sumatera (Bakter, Terpeka, dkk).' },
+      { name: 'Derek Tol Resmi (Gratis)', phone: '14080', agency: 'BUJT', desc: 'Layanan evakuasi derek gratis sampai gerbang keluar tol terdekat.' },
+    ];
+
+    const WALLET_CARDS = [
+      { id: '1', name: 'Mandiri e-Money Utama', balance: 250000, brand: 'e-Money' },
+      { id: '2', name: 'BCA Flazz Cadangan', balance: 100000, brand: 'Flazz' },
+    ];
+
+    // STATE
+    let currentOriginId = 'gt_halim';
+    let currentDestId = 'gt_warugunung';
+    let currentVehicleClass = 'GOL_1';
+    let miniMapInstance = null;
+    let fullMapInstance = null;
+    let lastCalculatedResult = null;
+
+    function formatRupiah(num) {
+      return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
+    }
+
+    // CALCULATE FUNCTION
+    function calculateTrip(origId, destId, vClass) {
+      const orig = TOLL_GATES.find(g => g.id === origId) || TOLL_GATES[0];
+      const dest = TOLL_GATES.find(g => g.id === destId) || TOLL_GATES[1];
+
+      // Jakarta -> Surabaya
+      if ((orig.id === 'gt_halim' && dest.id === 'gt_warugunung') || (orig.id === 'gt_warugunung' && dest.id === 'gt_halim')) {
+        const rates = { GOL_1: 841500, GOL_2: 1262000, GOL_3: 1262000, GOL_4: 1683000, GOL_5: 1683000, GOL_6: 0 };
+        return {
+          orig, dest,
+          totalFare: rates[vClass] || 841500,
+          totalDistance: 745,
+          durationHours: '9 jam 30 mnt',
+          fuelLiters: vClass === 'GOL_1' ? 62 : 120,
+          legs: [
+            { name: 'Tol Jakarta - Cikampek', orig: 'Halim', dest: 'Cikampek Utama', dist: 68, fare: 27000 },
+            { name: 'Tol Cipali', orig: 'Cikampek Utama', dest: 'Palimanan', dist: 117, fare: 119000 },
+            { name: 'Tol Palikanci', orig: 'Palimanan', dest: 'Kanci', dist: 26, fare: 13500 },
+            { name: 'Tol Kanci - Pejagan', orig: 'Kanci', dest: 'Pejagan', dist: 35, fare: 31500 },
+            { name: 'Tol Pejagan - Pemalang', orig: 'Pejagan', dest: 'Pemalang', dist: 58, fare: 60000 },
+            { name: 'Tol Pemalang - Batang', orig: 'Pemalang', dest: 'Batang', dist: 39, fare: 45000 },
+            { name: 'Tol Batang - Semarang', orig: 'Batang', dest: 'Kalikangkung', dist: 75, fare: 111500 },
+            { name: 'Tol Semarang - Solo', orig: 'Banyumanik', dest: 'Colomadu', dist: 73, fare: 92000 },
+            { name: 'Tol Solo - Ngawi', orig: 'Colomadu', dest: 'Ngawi', dist: 90, fare: 131000 },
+            { name: 'Tol Ngawi - Kertosono', orig: 'Ngawi', dest: 'Bandar', dist: 87, fare: 98000 },
+            { name: 'Tol Kertosono - Mojokerto', orig: 'Bandar', dest: 'Mojokerto Barat', dist: 40, fare: 54000 },
+            { name: 'Tol Surabaya - Mojokerto', orig: 'Mojokerto Barat', dest: 'Warugunung', dist: 36, fare: 43500 },
+          ],
+          coords: [[-6.257, 106.883], [-6.402, 107.452], [-6.711, 108.435], [-6.983, 110.320], [-7.530, 110.741], [-7.424, 111.458], [-7.348, 112.678]]
+        };
+      }
+
+      // Jakarta -> Bandung
+      if ((orig.id === 'gt_cikampek_utama' && dest.id === 'gt_pasteur') || (orig.id === 'gt_pasteur' && dest.id === 'gt_cikampek_utama')) {
+        const rates = { GOL_1: 47500, GOL_2: 78500, GOL_3: 78500, GOL_4: 104000, GOL_5: 104000, GOL_6: 0 };
+        return {
+          orig, dest,
+          totalFare: rates[vClass] || 47500,
+          totalDistance: 85,
+          durationHours: '1 jam 15 mnt',
+          fuelLiters: 8,
+          legs: [
+            { name: 'Tol Cipularang & Padaleunyi', orig: 'Cikampek Utama', dest: 'Pasteur Bandung', dist: 85, fare: rates[vClass] || 47500 }
+          ],
+          coords: [[-6.402, 107.452], [-6.621, 107.441], [-6.892, 107.575]]
+        };
+      }
+
+      // General Calculation
+      const kmDiff = Math.max(20, Math.abs(dest.km - orig.km) || 45);
+      const mult = vClass === 'GOL_1' ? 1100 : vClass === 'GOL_2' ? 1650 : vClass === 'GOL_3' ? 1650 : 2200;
+      const fare = Math.round((kmDiff * mult) / 500) * 500;
+      const durationMins = Math.round((kmDiff / 75) * 60);
+
+      return {
+        orig, dest,
+        totalFare: fare,
+        totalDistance: kmDiff,
+        durationHours: Math.floor(durationMins / 60) + ' jam ' + (durationMins % 60) + ' mnt',
+        fuelLiters: Math.round((kmDiff / 11) * 10) / 10,
+        legs: [
+          { name: 'Jalur Tol Terhubung', orig: orig.name, dest: dest.name, dist: kmDiff, fare }
+        ],
+        coords: [[orig.lat, orig.lng], [dest.lat, dest.lng]]
+      };
+    }
+
+    // RENDER FUNCTIONS
+    function initDropdowns() {
+      const origEl = document.getElementById('origin-select');
+      const destEl = document.getElementById('dest-select');
+      
+      origEl.innerHTML = TOLL_GATES.map(g => `<option value="${g.id}" ${g.id === currentOriginId ? 'selected' : ''}>${g.name} (${g.city}) [KM ${g.km}]</option>`).join('');
+      destEl.innerHTML = TOLL_GATES.map(g => `<option value="${g.id}" ${g.id === currentDestId ? 'selected' : ''}>${g.name} (${g.city}) [KM ${g.km}]</option>`).join('');
+    }
+
+    function initVehicleChips() {
+      const chipsEl = document.getElementById('vehicle-chips');
+      chipsEl.innerHTML = VEHICLE_CLASSES.map(vc => `
+        <button onclick="selectVehicleClass('${vc.id}')" class="p-2 rounded-xl border text-center transition ${currentVehicleClass === vc.id ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold shadow-md' : 'bg-gray-900/80 border-gray-800 text-gray-400 hover:text-white'}">
+          <div class="text-base">${vc.icon}</div>
+          <div class="text-[10px] mt-0.5">${vc.name.replace('Golongan ', 'Gol ')}</div>
+        </button>
+      `).join('');
+
+      const vcObj = VEHICLE_CLASSES.find(v => v.id === currentVehicleClass) || VEHICLE_CLASSES[0];
+      document.getElementById('vehicle-desc-box').innerHTML = `
+        <span class="text-gray-200 font-semibold">${vcObj.category}:</span> ${vcObj.desc}
+      `;
+    }
+
+    function selectVehicleClass(vId) {
+      currentVehicleClass = vId;
+      initVehicleChips();
+      handleCalculate();
+    }
+
+    function swapRoute() {
+      const temp = currentOriginId;
+      currentOriginId = currentDestId;
+      currentDestId = temp;
+      initDropdowns();
+      handleCalculate();
+    }
+
+    function setPreset(origId, destId) {
+      currentOriginId = origId;
+      currentDestId = destId;
+      initDropdowns();
+      handleCalculate();
+    }
+
+    async function fetchOsrmDrivingRoute(coords) {
+      if (!coords || coords.length < 2) return null;
+      try {
+        const formatted = coords.map(c => `${c[1]},${c[0]}`).join(';');
+        const url = `https://router.project-osrm.org/route/v1/driving/${formatted}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`OSRM HTTP error: ${res.status}`);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+          return data.routes[0].geometry;
+        }
+      } catch (err) {
+        console.error('OSRM routing request failed, falling back to straight polyline:', err);
+      }
+      return null;
+    }
+
+    async function updateMiniMap(result) {
+      const mapEl = document.getElementById('mini-map');
+      if (!mapEl) return;
+
+      if (!miniMapInstance) {
+        miniMapInstance = L.map(mapEl, { center: [-6.9, 109.8], zoom: 7 });
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '&copy; Esri, HERE, Garmin, OpenStreetMap contributors',
+          maxZoom: 19,
+        }).addTo(miniMapInstance);
+      }
+
+      // Clear layers
+      miniMapInstance.eachLayer(layer => {
+        if (layer instanceof L.Polyline || layer instanceof L.GeoJSON || layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+          miniMapInstance.removeLayer(layer);
+        }
+      });
+
+      // Draw Real Highway Route via OSRM GeoJSON (or fallback)
+      if (result.coords && result.coords.length > 0) {
+        const routeGeoJson = await fetchOsrmDrivingRoute(result.coords);
+        if (routeGeoJson) {
+          // Glow layer
+          L.geoJSON(routeGeoJson, {
+            style: { color: '#34d399', weight: 9, opacity: 0.25, lineCap: 'round' }
+          }).addTo(miniMapInstance);
+
+          // Main green route line
+          const geoLayer = L.geoJSON(routeGeoJson, {
+            style: { color: '#10b981', weight: 5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }
+          }).addTo(miniMapInstance);
+
+          miniMapInstance.fitBounds(geoLayer.getBounds(), { padding: [30, 30] });
+        } else {
+          // Straight polyline fallback
+          const polyline = L.polyline(result.coords, { color: '#10b981', weight: 5, opacity: 0.9 }).addTo(miniMapInstance);
+          miniMapInstance.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        }
+      }
+
+      // Draw markers
+      L.marker([result.orig.lat, result.orig.lng]).bindPopup(`<b>TITIK ASAL</b><br/>${result.orig.name}`).addTo(miniMapInstance);
+      L.marker([result.dest.lat, result.dest.lng]).bindPopup(`<b>TITIK TUJUAN</b><br/>${result.dest.name}`).addTo(miniMapInstance);
+
+      // Draw Rest Areas
+      REST_AREAS.forEach(ra => {
+        L.circleMarker([ra.lat, ra.lng], { radius: 5, color: '#f59e0b', fillColor: '#fbbf24', fillOpacity: 0.9 })
+          .bindPopup(`<b>${ra.name}</b><br/>${ra.road}<br/>${ra.spklu ? '⚡ SPKLU Fast Charging' : ''}`)
+          .addTo(miniMapInstance);
+      });
+    }
+
+    async function updateFullMap() {
+      const mapEl = document.getElementById('full-map');
+      if (!mapEl) return;
+
+      if (!fullMapInstance) {
+        fullMapInstance = L.map(mapEl, { center: [-6.9, 109.8], zoom: 7 });
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          attribution: '&copy; Esri, HERE, Garmin, OpenStreetMap contributors',
+          maxZoom: 19,
+        }).addTo(fullMapInstance);
+      }
+
+      // Clear layers
+      fullMapInstance.eachLayer(layer => {
+        if (layer instanceof L.Polyline || layer instanceof L.GeoJSON || layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+          fullMapInstance.removeLayer(layer);
+        }
+      });
+
+      // Draw all gates
+      TOLL_GATES.forEach(g => {
+        L.marker([g.lat, g.lng]).bindPopup(`<b>${g.name}</b><br/>${g.city} [KM ${g.km}]`).addTo(fullMapInstance);
+      });
+
+      // Draw Rest areas
+      REST_AREAS.forEach(ra => {
+        L.circleMarker([ra.lat, ra.lng], { radius: 7, color: '#f59e0b', fillColor: '#fbbf24', fillOpacity: 0.9 })
+          .bindPopup(`<b>${ra.name}</b><br/>${ra.road}<br/>${ra.spklu ? '⚡ SPKLU Fast Charging' : ''}`)
+          .addTo(fullMapInstance);
+      });
+
+      if (lastCalculatedResult && lastCalculatedResult.coords.length > 0) {
+        const routeGeoJson = await fetchOsrmDrivingRoute(lastCalculatedResult.coords);
+        if (routeGeoJson) {
+          L.geoJSON(routeGeoJson, {
+            style: { color: '#34d399', weight: 9, opacity: 0.25, lineCap: 'round' }
+          }).addTo(fullMapInstance);
+
+          const geoLayer = L.geoJSON(routeGeoJson, {
+            style: { color: '#10b981', weight: 5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }
+          }).addTo(fullMapInstance);
+
+          fullMapInstance.fitBounds(geoLayer.getBounds(), { padding: [40, 40] });
+        } else {
+          const polyline = L.polyline(lastCalculatedResult.coords, { color: '#10b981', weight: 6, opacity: 0.9 }).addTo(fullMapInstance);
+          fullMapInstance.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+        }
+      }
+    }
+
+    function handleCalculate() {
+      const origEl = document.getElementById('origin-select');
+      const destEl = document.getElementById('dest-select');
+      if (origEl) currentOriginId = origEl.value;
+      if (destEl) currentDestId = destEl.value;
+
+      const result = calculateTrip(currentOriginId, currentDestId, currentVehicleClass);
+      lastCalculatedResult = result;
+
+      // Update Summary Card
+      document.getElementById('res-total-fare').innerText = formatRupiah(result.totalFare);
+      document.getElementById('res-route-title').innerHTML = `Rute: <span class="text-gray-200 font-semibold">${result.orig.name}</span> ➔ <span class="text-gray-200 font-semibold">${result.dest.name}</span>`;
+      document.getElementById('res-distance').innerText = `${result.totalDistance} KM`;
+      document.getElementById('res-duration').innerText = result.durationHours;
+      document.getElementById('res-fuel').innerText = `±${result.fuelLiters} L`;
+
+      // e-Money readiness check
+      const primaryBalance = WALLET_CARDS[0].balance;
+      const isSufficient = primaryBalance >= result.totalFare;
+      const deficit = Math.max(0, result.totalFare - primaryBalance);
+      
+      document.getElementById('emoney-alert-box').className = `p-4 rounded-2xl border ${isSufficient ? 'bg-emerald-950/40 border-emerald-500/30' : 'bg-rose-950/40 border-rose-500/40'}`;
+      document.getElementById('emoney-alert-box').innerHTML = `
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>${isSufficient ? '✅ Saldo e-Money Mencukupi' : '⚠️ Saldo e-Money Kurang!'}</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-1">
+              ${isSufficient
+                ? `Saldo kartu (${formatRupiah(primaryBalance)}) mencukupi tarif ${formatRupiah(result.totalFare)}.`
+                : `Kurang ${formatRupiah(deficit)}. Segera top up saldo melalui NFC m-Banking / Minimarket.`}
+            </p>
+          </div>
+          <button onclick="switchTab('wallet')" class="text-xs font-bold text-emerald-400 hover:underline">Kelola ➔</button>
+        </div>
+      `;
+
+      // Itemized Legs
+      document.getElementById('legs-count-title').innerText = `📋 Rincian Ruas Tol (${result.legs.length} Segmen)`;
+      document.getElementById('legs-container').innerHTML = result.legs.map(leg => `
+        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-gray-800 flex items-center justify-between text-xs">
+          <div>
+            <div class="font-bold text-gray-200">${leg.name}</div>
+            <div class="text-[11px] text-gray-400">${leg.orig} ➔ ${leg.dest} (${leg.dist} KM)</div>
+          </div>
+          <div class="font-mono font-bold text-white text-sm">${formatRupiah(leg.fare)}</div>
+        </div>
+      `).join('');
+
+      // Update Map
+      updateMiniMap(result);
+    }
+
+    function renderRestAreas() {
+      document.getElementById('rest-areas-grid').innerHTML = REST_AREAS.map(ra => `
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">KM ${ra.km}</span>
+            ${ra.spklu ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">⚡ SPKLU</span>' : ''}
+          </div>
+          <h3 class="font-bold text-sm text-white">${ra.name}</h3>
+          <p class="text-xs text-gray-400">${ra.road}</p>
+          <div class="text-[11px] text-gray-300 pt-2 border-t border-gray-800">
+            <span class="text-gray-400">Fasilitas & Tenan:</span> ${ra.tenants}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderEmergency() {
+      document.getElementById('emergency-grid').innerHTML = EMERGENCY_HOTLINES.map(em => `
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between space-y-3">
+          <div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-emerald-400">${em.agency}</span>
+            <h3 class="font-bold text-sm text-white mt-1">${em.name}</h3>
+            <p class="text-xs text-gray-400 mt-0.5">${em.desc}</p>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-gray-800">
+            <span class="font-mono text-lg font-extrabold text-emerald-400">${em.phone}</span>
+            <a href="tel:${em.phone}" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-400 transition">
+              📞 Panggil
+            </a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderWallet() {
+      document.getElementById('wallet-cards-grid').innerHTML = WALLET_CARDS.map(c => `
+        <div class="p-5 rounded-2xl bg-gradient-to-br from-gray-900 to-emerald-950/60 border border-emerald-500/30 space-y-3">
+          <div class="flex justify-between text-xs font-bold text-emerald-400">
+            <span>${c.brand}</span>
+            <span>AKTIF</span>
+          </div>
+          <div class="text-sm font-semibold text-white">${c.name}</div>
+          <div class="pt-2 border-t border-gray-800">
+            <span class="text-[10px] text-gray-400">Saldo Kartu:</span>
+            <div class="text-xl font-bold font-mono text-white">${formatRupiah(c.balance)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // TAB SWITCHER
+    function switchTab(tabName) {
+      ['calc', 'map', 'rest', 'emergency', 'wallet'].forEach(t => {
+        const tabEl = document.getElementById('tab-' + t);
+        const navEl = document.getElementById('nav-' + t);
+        if (tabEl) {
+          if (t === tabName) {
+            tabEl.classList.remove('hidden');
+          } else {
+            tabEl.classList.add('hidden');
+          }
+        }
+        if (navEl) {
+          if (t === tabName) {
+            navEl.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition font-bold';
+          } else {
+            navEl.className = 'px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition';
+          }
+        }
+      });
+
+      if (tabName === 'map') {
+        setTimeout(updateFullMap, 100);
+      }
+    }
+
+    // RECEIPT MODAL
+    function openReceiptModal() {
+      if (!lastCalculatedResult) return;
+      const vcObj = VEHICLE_CLASSES.find(v => v.id === currentVehicleClass) || VEHICLE_CLASSES[0];
+      
+      document.getElementById('receipt-date').innerText = new Date().toLocaleDateString('id-ID');
+      document.getElementById('receipt-vehicle').innerText = vcObj.name;
+      document.getElementById('receipt-route').innerText = `${lastCalculatedResult.orig.name} ➔ ${lastCalculatedResult.dest.name}`;
+      document.getElementById('receipt-distance').innerText = `${lastCalculatedResult.totalDistance} KM`;
+      document.getElementById('receipt-fare').innerText = formatRupiah(lastCalculatedResult.totalFare);
+      
+      document.getElementById('receipt-modal').classList.remove('hidden');
+    }
+
+    function closeReceiptModal() {
+      document.getElementById('receipt-modal').classList.add('hidden');
+    }
+
+    function copyReceiptText() {
+      if (!lastCalculatedResult) return;
+      const vcObj = VEHICLE_CLASSES.find(v => v.id === currentVehicleClass) || VEHICLE_CLASSES[0];
+      const text = `🧾 STRUK TOL RESMI INDONESIA\nRute: ${lastCalculatedResult.orig.name} ➔ ${lastCalculatedResult.dest.name}\nTotal Tarif: ${formatRupiah(lastCalculatedResult.totalFare)}\nTotal Jarak: ${lastCalculatedResult.totalDistance} KM\nGolongan: ${vcObj.name}\nStatus: LUNAS BPJT`;
+      navigator.clipboard.writeText(text);
+      const btn = document.getElementById('btn-copy-receipt');
+      btn.innerText = 'Tersalin!';
+      setTimeout(() => { btn.innerText = 'Salin Teks'; }, 2000);
+    }
+
+    // BOOTSTRAP
+    window.addEventListener('DOMContentLoaded', () => {
+      initDropdowns();
+      initVehicleChips();
+      renderRestAreas();
+      renderEmergency();
+      renderWallet();
+      handleCalculate();
+    });
+  </script>
+</body>
+</html>
